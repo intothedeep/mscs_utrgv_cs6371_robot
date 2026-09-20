@@ -42,9 +42,7 @@ packages/assets/posts
 z_*
 # doc archive — superseded/verbose docs live here, never committed (see CLAUDE.md doc rule)
 _docs/
-_scripts/
 x_*
-.claude/
 .venv/
 .vscode/
 .ruff_cache
