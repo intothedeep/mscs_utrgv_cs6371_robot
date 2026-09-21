@@ -1,8 +1,10 @@
 # Claude Code Agent Rules
 
-This repo is a **Korean LaTeX book + two research domains** (book-market
-research under `book/research/`, PhD-program research under `x_research.md`).
-Code is a minor/future concern (`src/` is currently empty).
+This repo can hold more than one domain, and often holds several at once: book
+work lives in `book_*/` folders, development work in `apps/` and `packages/`.
+Nothing below assumes a single domain — `rules/` loads by file path, so only the
+conventions for the files you actually open apply. Which domain a task belongs to
+is decided by the paths it touches, never by this file.
 
 ## Priority order (tiebreaker)
 correctness → simplicity → maintainability → explicitness → performance → abstraction quality
@@ -32,8 +34,9 @@ living docs. Everything else: `cat` freely.
   `TASKS.md`, `*.plan.md`, `*.tasks.md`, `01.rules.md`, `_archive/**`).
 - `rules/development/{code,python}.md` — when you open a source file
   (`.py`, `pyproject.toml`, `.ts/.tsx/.js/.jsx`, `.go`, `.rs`, `.sql`).
-- `rules/writing/{book,latex}.md` — when you open a `.tex`/`.bib` file
-  (`latex.md` also on `.sty`/`.cls`); book/LaTeX conventions load automatically.
+- `rules/writing/{book,latex}.md` — when you open a `.tex`/`.bib` file or any
+  file under a `book_*/` folder (`latex.md` also on `.sty`/`.cls`). Book/LaTeX
+  conventions live there, not here; they load only for those paths.
 
 ## Skills index
 - Orchestration (main session only): `research`, `write-book`, `review-book`.
@@ -102,8 +105,10 @@ Invariants:
 
 ## End-of-task
 1. Docs update, once, surgically (see `rules/docs.md`).
-2. Run the build once, in the background: for `book/`, `latexmk -xelatex
-   main.tex` from `book/`; not a web app.
+2. Run the build once, in the background, for the domain you actually touched:
+   - book (`book_*/`): `latexmk -xelatex main.tex` from that book folder.
+   - development (`apps/`, `packages/`): that project's documented build command.
+   Touched neither? Skip it. Never run a build for a domain you did not change.
 
 **Who runs the build.** `sonnet-writer` compiles only to check its own edit and
 reports what it saw. The AUTHORITATIVE build-and-verify pass belongs to

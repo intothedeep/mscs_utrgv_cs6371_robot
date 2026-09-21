@@ -2,6 +2,7 @@
 paths:
   - "**/*.tex"
   - "**/*.bib"
+  - "book_*/**"
 ---
 
 # 책 집필 지시사항 (Authoring Guide)
