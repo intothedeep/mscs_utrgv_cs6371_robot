@@ -1,0 +1,2 @@
+https://github.com/vikasgola/image-filtering/tree/master
+https://stackoverflow.com/questions/6094957/high-pass-filter-for-image-processing-in-python-by-using-scipy-numpy
