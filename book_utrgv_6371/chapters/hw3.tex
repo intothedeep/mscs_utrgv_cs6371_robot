@@ -1,0 +1,235 @@
+\chapter{Assignment 3 --- Low-Pass Filtering of an Image}
+\label{ch:hw3}
+
+\section{The problem}
+\label{sec:hw3-problem}
+
+A low-pass filter smooths an image. The provided image is smoothed with three
+box filters of size $3\times3$, $5\times5$ and $7\times7$, implemented in the
+\texttt{conv} function of the provided template
+\texttt{Low\_pass\_filter\_template.py}. New code was added, but the template
+itself was not changed.
+
+A box filter replaces the value at the centre of the box with the average of the
+values inside it. For the $3\times3$ case the filter matrix is
+
+\begin{equation}
+\label{eq:hw3-filter3}
+\mathit{filter} = \frac{1}{9}
+\begin{bmatrix}
+1 & 1 & 1 \\
+1 & 1 & 1 \\
+1 & 1 & 1
+\end{bmatrix}
+=
+\begin{bmatrix}
+\frac{1}{9} & \frac{1}{9} & \frac{1}{9} \\[2pt]
+\frac{1}{9} & \frac{1}{9} & \frac{1}{9} \\[2pt]
+\frac{1}{9} & \frac{1}{9} & \frac{1}{9}
+\end{bmatrix}.
+\end{equation}
+
+The assignment's worked example takes the sub-image
+
+\begin{equation}
+\label{eq:hw3-subimage}
+\mathit{subImage}_1 =
+\begin{bmatrix}
+21 & 78 & 63 \\
+16 & 109 & 73 \\
+6 & 88 & 86
+\end{bmatrix},
+\end{equation}
+
+and multiplies it element-wise by the filter,
+
+\begin{equation}
+\label{eq:hw3-conv}
+C = \mathit{filter} * \mathit{subImage}_1 =
+\begin{bmatrix}
+2.33 & 8.67 & 7 \\
+1.78 & 12.11 & 8.11 \\
+0.67 & 9.78 & 9.56
+\end{bmatrix}.
+\end{equation}
+
+Summing the entries of $C$ should reproduce the mean of $\mathit{subImage}_1$,
+because that is exactly what a box filter is defined to compute. The check is
+done one operation at a time in \Cref{eq:hw3-checksum}.
+
+\begin{align*}
+&2.33 + 8.67 + 7      = 18   && \text{row 1 of } C \\
+&1.78 + 12.11 + 8.11  = 22   && \text{row 2 of } C \\
+&0.67 + 9.78 + 9.56   = 20   && \text{row 3 of } C \\
+&18 + 22 + 20         = 60   && \text{sum of } C
+\end{align*}
+
+\begin{align}
+\label{eq:hw3-checksum}
+&21+78+63+16+109+73+6+88+86 = 540 && \text{sum of } \mathit{subImage}_1 \\
+&540 / 9 = 60 && \text{mean of } \mathit{subImage}_1 \notag
+\end{align}
+
+The two routes agree at $60$, confirming that the filter matrix does perform
+the averaging. Running the finished \texttt{conv} function
+(\Cref{sec:hw3-impl}) on $\mathit{subImage}_1$ with the $3\times3$ filter
+returns exactly $60.0$, matching this hand calculation. The $5\times5$ and
+$7\times7$ filters are built the same way, with $1/25$ and $1/49$ in every
+entry.
+
+\section{Implementation}
+\label{sec:hw3-impl}
+
+The template left two gaps: \texttt{lowPassFilter}, which builds the filter
+matrix, and \texttt{conv}, which slides that filter over the image.
+
+\paragraph{Problem: the filter entries must sum to 1.} If the filter's entries
+summed to anything other than $1$, every output pixel would be a value scaled
+away from the true local average, and the whole image would come out
+uniformly brighter or darker regardless of what it originally showed. An
+averaging filter must leave the image's overall brightness unchanged; only the
+high-frequency detail (fine texture, grain) should be removed. \texttt{lowPassFilter} solves this by filling an $\mathit{lpfw}\times\mathit{lpfh}$
+matrix with the single value $1/(\mathit{lpfw}\cdot\mathit{lpfh})$ in every
+entry:
+
+\begin{equation}
+\label{eq:hw3-lowpassfilter}
+\texttt{lowPass = np.ones((lpfw, lpfh)) / (lpfw * lpfh)}.
+\end{equation}
+
+Every entry is $1/(\mathit{lpfw}\cdot\mathit{lpfh})$ and there are
+$\mathit{lpfw}\cdot\mathit{lpfh}$ of them, so the entries sum to exactly $1$
+by construction, for any box size.
+
+\paragraph{Problem: what happens at the boundary of the image.} A filter of
+size $\mathit{fw}\times\mathit{fh}$ needs a full $\mathit{fw}\times\mathit{fh}$
+neighbourhood centred at each output pixel. Near the edge of the image that
+neighbourhood runs off the array, so there is no well-defined average to
+compute there. \texttt{conv} solves this by simply not producing an output for
+those positions: the sliding window only visits positions where the full
+window still fits inside the input, which is why the output array is declared
+smaller than the input,
+
+\begin{equation}
+\label{eq:hw3-outshape}
+\mathit{out.shape} = (\mathit{iw} - \mathit{fw} + 1,\; \mathit{ih} - \mathit{fh} + 1),
+\end{equation}
+
+and the double loop in \texttt{conv} fills each position with the element-wise
+sum of the filter against the matching sub-image:
+
+\begin{equation}
+\label{eq:hw3-convloop}
+\texttt{out[i, j] = np.sum(image[i:i+fw, j:j+fh] * filter)}.
+\end{equation}
+
+For the $512\times512$ input this drops the boundary pixels, giving
+$510\times510$, $508\times508$ and $506\times506$ outputs for the $3\times3$,
+$5\times5$ and $7\times7$ filters respectively (\Cref{tab:hw3-results}).
+
+The only other addition beyond \texttt{lowPassFilter} and \texttt{conv} is a
+guard placed right after the image is read,
+
+\begin{equation}
+\label{eq:hw3-guard}
+\texttt{if img.ndim == 3: img = img.mean(axis=2)},
+\end{equation}
+
+because the template's \texttt{iw, ih = image.shape} assumes a single-channel
+image and would fail on a 3-channel one. This is the one place where the
+template's assumption is fragile: for this input the guard did not actually
+trigger, since \texttt{original.jpg} is a baseline single-component JPEG and
+\texttt{mpimg.imread} already returned a $(512, 512)$ uint8 array, but the
+guard protects against inputs that are not.
+
+No normalization step was needed either. The image is a uint8 array and the
+filter is a float64 array, so their product upcasts to float64; because the
+filter entries sum to $1$ (\Cref{eq:hw3-lowpassfilter}), the averaged values
+never leave the range $0$ to $255$, and \texttt{cv2.imwrite} saturate-casts the
+result back to 8 bits when writing the file (it prints a benign
+``Unsupported depth \ldots fallbacked to CV\_8U'' warning in the process, shown
+in \Cref{lst:hw3-out}).
+
+The complete program is listed below; it is the same file submitted for the
+assignment.
+
+\lstinputlisting[style=py,
+                 caption={Lim\_20701313\_hw3.py: the complete solution.},
+                 label={lst:hw3-code}]{../hw3/submission/Lim_20701313_hw3.py}
+
+\section{Results}
+\label{sec:hw3-results}
+
+\Cref{fig:hw3-outputs} shows the original image next to the three filtered
+outputs. \Cref{tab:hw3-results} lists the corresponding filter entry value and
+output shape for each box size.
+
+\begin{figure}[ht]
+\centering
+\begin{minipage}{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{hw3_original.png}
+\par\textbf{Original} ($512\times512$).
+\end{minipage}
+\hfill
+\begin{minipage}{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{hw3_low3x3.png}
+\par\textbf{$3\times3$ box filter} ($510\times510$).
+\end{minipage}
+
+\vspace{1em}
+
+\begin{minipage}{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{hw3_low5x5.png}
+\par\textbf{$5\times5$ box filter} ($508\times508$).
+\end{minipage}
+\hfill
+\begin{minipage}{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{hw3_low7x7.png}
+\par\textbf{$7\times7$ box filter} ($506\times506$).
+\end{minipage}
+\caption{Original image and low-pass filtered outputs at three box sizes.}
+\label{fig:hw3-outputs}
+\end{figure}
+
+\begin{table}[ht]
+\centering
+\caption{Filter size, entry value and output shape for each run.}
+\label{tab:hw3-results}
+\begin{tabular}{lll}
+\toprule
+Box size & Filter entry value & Output shape \\
+\midrule
+$3\times3$ & $1/9 \approx 0.11111111$  & $510\times510$ \\
+$5\times5$ & $1/25 = 0.04$             & $508\times508$ \\
+$7\times7$ & $1/49 \approx 0.02040816$ & $506\times506$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The console output of the run is reproduced verbatim, with the $5\times5$ and
+$7\times7$ filter matrices abbreviated since every entry is identical:
+
+\begin{lstlisting}[style=shell,caption={Console output of the program.},label={lst:hw3-out}]
+(512, 512)
+ ================ Low Pass Filter ===================
+Please create a (lpfw x lpfh) Low Pass Filter matrix
+[[0.11111111 0.11111111 0.11111111]
+ [0.11111111 0.11111111 0.11111111]
+ [0.11111111 0.11111111 0.11111111]]
+Please create a (lpfw x lpfh) Low Pass Filter matrix
+[[0.04 0.04 ... ]]   # 5x5, every entry 0.04
+Please create a (lpfw x lpfh) Low Pass Filter matrix
+[[0.02040816 ... ]]  # 7x7, every entry 0.02040816
+\end{lstlisting}
+
+The smoothing grows with the box size, exactly as expected from averaging over
+more neighbours per output pixel. At $3\times3$ the film grain is only lightly
+softened and fine detail such as hair strands, eyelashes and skin texture
+stays sharp. At $5\times5$ the grain is largely gone and fine hair strands
+start merging, while the eyes, nose and lips stay well defined. At $7\times7$
+the smoothing is strongest: the background and skin flatten, hair strands
+merge into soft masses, and edges such as the jawline show visible softening.
