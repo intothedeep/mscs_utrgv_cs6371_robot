@@ -1,0 +1,27 @@
+[project]
+name = "mscs-utrgv-cs6371-robot"
+version = "0.1.0"
+description = "CSCI 6371 Robotics Programming — coursework, notes, and lecture-note book"
+requires-python = ">=3.13"
+dependencies = [
+    "matplotlib>=3.11.2",
+    "numpy>=2.5.3",
+    "opencv-python>=5.0.0.93",
+]
+
+# No [build-system]: this repo is a collection of coursework scripts, not an
+# installable package, so uv manages it as a virtual project.
+
+[dependency-groups]
+dev = ["ruff>=0.15"]
+
+[tool.ruff]
+line-length = 100
+
+extend-exclude = [
+    # Instructor-supplied skeletons/templates are kept verbatim for diffing
+    # against the submission — never reformat them.
+    "hw*/docs",
+    # Agent harness submodule: not this repo's code to format.
+    ".claude",
+]
