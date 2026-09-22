@@ -1,0 +1,175 @@
+\chapter{Assignment 1 --- Simulator Installation}
+\label{ch:hw1}
+
+\section{Environment}
+\label{sec:hw1-env}
+
+All work was done on a MacBook Pro with an Apple M3 Max processor
+(\texttt{arm64}), running macOS with Homebrew~6.0.21 and CMake~4.4.3. The CMake
+version matters: it is the source of most of the build failures recorded below.
+
+\section{Webots}
+\label{sec:hw1-webots}
+
+Webots is distributed both as a disk image and as a Homebrew cask
+(\url{https://cyberbotics.com/}). Either path works; the cask was used.
+
+\begin{lstlisting}[style=shell,caption={Installing Webots.}]
+# option 1 - download the disk image and run it
+# https://github.com/cyberbotics/webots/releases/download/R2025a/webots-R2025a.dmg
+
+# option 2 - Homebrew cask
+brew install --cask webots
+\end{lstlisting}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.85\linewidth]{hw1_webots_install.png}
+\caption{Webots installed on macOS.}
+\label{fig:hw1-webots-install}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.85\linewidth]{hw1_webots_running.png}
+\caption{Webots running a sample world.}
+\label{fig:hw1-webots-running}
+\end{figure}
+
+\section{ARGoS}
+\label{sec:hw1-argos}
+
+ARGoS is documented at \url{https://www.argos-sim.info/} and is built from
+source at \url{https://github.com/ilpincy/argos3}.
+
+\subsection{The Homebrew tap fails}
+\label{sec:hw1-argos-brew}
+
+The maintainer publishes a tap, and the tap owner and the repository owner are
+the same account, so the tap looked like the safe route.
+
+\begin{lstlisting}[style=shell,caption={The tap route.}]
+brew tap ilpincy/argos3
+brew trust ilpincy/argos3
+brew install bash-completion qt argos3
+\end{lstlisting}
+
+It fails during CMake configuration:
+
+\begin{lstlisting}[style=shell,caption={CMake rejects the project's minimum version.}]
+CMake Error at CMakeLists.txt:15 (cmake_policy):
+  Compatibility with CMake < 3.5 has been removed from CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+  Or, add -DCMAKE_POLICY_VERSION_MINIMUM=3.5 to try configuring anyway.
+
+-- Configuring incomplete, errors occurred!
+\end{lstlisting}
+
+The cause is the CMake version: the local CMake is~4.4.3, and ARGoS still
+declares compatibility with CMake~$<3.5$, which CMake~4 no longer accepts. The
+error message names its own fix --- \texttt{-DCMAKE\_POLICY\_VERSION\_MINIMUM=3.5}
+--- but the tap gives no place to pass it. So the tap was removed and ARGoS was
+built by hand instead.
+
+\begin{lstlisting}[style=shell,caption={Removing the tap.}]
+cmake --version      # cmake version 4.4.3
+brew untap ilpincy/argos3
+\end{lstlisting}
+
+\subsection{Building from source}
+\label{sec:hw1-argos-source}
+
+Building by hand makes it possible to pass the policy flag, and
+\path|-DCMAKE_INSTALL_PREFIX=$HOME/.local| keeps the install in user space
+so no \texttt{sudo} is needed.
+
+\begin{lstlisting}[style=shell,caption={Dependencies and source build.}]
+brew install pkg-config cmake libpng freeimage lua qt docbook asciidoc \
+             graphviz doxygen
+
+git clone https://github.com/ilpincy/argos3.git argos3
+cd argos3
+mkdir build_simulator
+cd build_simulator
+
+cmake ../src -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+             -DCMAKE_INSTALL_PREFIX=$HOME/.local \
+             -DCMAKE_PREFIX_PATH=$(brew --prefix qt)
+make
+make doc
+make install
+\end{lstlisting}
+
+Two failures were hit on the way to that command, and both are already fixed in
+it:
+
+\begin{enumerate}
+  \item \textbf{\texttt{make install} cannot find \texttt{argos3.1.gz}.} The man
+        page is a build target of its own. Running \texttt{make doc} before
+        \texttt{make install} produces it.
+  \item \textbf{\texttt{find\_package(ARGoS)} cannot find
+        \texttt{FindARGoSQTOpenGL.cmake}} when building the examples. The Qt
+        OpenGL visualization was not built, because CMake did not find Qt.
+        Adding \texttt{-DCMAKE\_PREFIX\_PATH=\$(brew --prefix qt)} and
+        rebuilding fixes it.
+\end{enumerate}
+
+\subsection{Verifying the installation}
+\label{sec:hw1-argos-verify}
+
+Because the prefix is \texttt{\$HOME/.local}, its \texttt{bin} directory must be
+on \texttt{PATH}; otherwise \texttt{argos3} reports \texttt{command not found}
+even though it installed correctly.
+
+\begin{lstlisting}[style=shell,caption={Putting the binary on PATH.}]
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+argos3 -v
+\end{lstlisting}
+
+\subsection{Running an example}
+\label{sec:hw1-argos-example}
+
+The example worlds are listed at \url{https://www.argos-sim.info/examples.php}.
+
+\begin{lstlisting}[style=shell,caption={Building the examples.}]
+cd argos3-examples
+mkdir build
+cd build
+cmake ../ -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+          -DCMAKE_PREFIX_PATH=$HOME/.local
+make
+\end{lstlisting}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.85\linewidth]{hw1_argos3_running.png}
+\caption{ARGoS running an example experiment.}
+\label{fig:hw1-argos-running}
+\end{figure}
+
+\subsection{Uninstalling}
+\label{sec:hw1-argos-uninstall}
+
+The install writes its own uninstall script --- the install log lists
+\path|$HOME/.local/share/argos3/uninstall_argos3.sh|. That is the official
+removal path and it should be preferred.
+
+\begin{lstlisting}[style=shell,caption={Uninstalling ARGoS.}]
+bash ~/.local/share/argos3/uninstall_argos3.sh
+
+# if the script is missing, remove the installed paths by hand.
+# no sudo needed - everything is under the ~/.local prefix.
+rm -f  ~/.local/bin/argos3
+rm -rf ~/.local/include/argos3
+rm -rf ~/.local/lib/argos3
+rm -f  ~/.local/lib/libargos3*
+rm -rf ~/.local/share/argos3
+
+which argos3        # no output means the removal is complete
+\end{lstlisting}

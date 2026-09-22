@@ -1,0 +1,470 @@
+\chapter{Lecture 1: 자율 이동 로봇 개관 (Introduction to Autonomous Mobile Robots)}
+\label{ch:lec01}
+
+% cleveref names follow the language of the surrounding prose (see hw2.tex).
+\crefname{equation}{식}{식}
+\Crefname{equation}{식}{식}
+\crefname{figure}{그림}{그림}
+\Crefname{figure}{그림}{그림}
+\crefname{table}{표}{표}
+\Crefname{table}{표}{표}
+\crefname{section}{절}{절}
+\Crefname{section}{절}{절}
+\crefname{chapter}{장}{장}
+\Crefname{chapter}{장}{장}
+
+\paragraph{In brief.}
+\begin{description}
+  \item[Why] 이동 로봇(mobile robot)이 스스로 움직이려면 ``나는 어디 있는가'',
+    ``나는 어디로 가야 하는가'', ``거기까지 어떻게 가는가''라는 세 질문에 답해야
+    한다. 이 장은 그 세 질문을 푸는 표준 틀인 지각-사고-행동 순환
+    (see-think-act cycle)을 소개한다.
+  \item[When] 로봇이 바퀴, 다리, 프로펠러 등 어떤 방식으로 움직이든, 그리고 실내
+    청소 로봇이든 자율주행차든 상관없이 적용되는 일반 틀이다.
+  \item[Where] 이 장은 개관(overview)이며 수식은 좌표계 변환(rotation matrix)
+    하나뿐이다. 지각·위치 추정·경로 계획 각각의 상세 알고리즘은 이 장의 범위
+    밖이고, 다음 장들에서 하나씩 다룬다.
+  \item[How] 로봇을 강체(rigid body)로 모델링하고, 전역 좌표계(global frame)와
+    로봇 좌표계(local frame) 사이를 회전 행렬(rotation matrix) $R(\theta)$로
+    잇는다. 이 계산이 이후 모든 장에서 반복해서 쓰인다.
+\end{description}
+
+\section{배경}
+\label{sec:lec01-bg}
+
+이 장은 CSCI 6371 강의의 1강 슬라이드(\texttt{notes/Lecture1.pdf}, 총 33장)를
+옮긴 것이다. % src: Lecture1 slide 1
+슬라이드 표지에는 이 자료가 Roland Siegwart, Margarita Chli, Nick Lawrance의
+자료 제공(courtesy)이라고 명시되어 있을 뿐, 특정 교재의 서지 정보(저자·출판사·
+판)는 적혀 있지 않다. % src: Lecture1 slide 1
+슬라이드 중간에는 ``Ref. to Ch.\ 2'', ``Ref. to Ch.\ 3''라는 표시가 여러 번
+나오는데, 이 역시 어떤 책의 몇 장인지 이름을 밝히지 않는다. 그래서 이 장에서는
+그 표시를 \emph{강의가 참고하는 외부 교재의 장 번호}로만 언급하고, 책 제목을
+지어내지 않는다. % src: Lecture1 slides 7,9,10,11,12,13
+
+\textbf{자율 이동 로봇(autonomous mobile robot)}이란 사람이 매 순간 조종하지
+않아도, 스스로 주변을 파악하고 목적지까지 움직이는 로봇을 말한다. 청소
+로봇이나 자율주행차가 그 예다. ``자율(autonomous)''이라는 말은 사람의 개입 없이
+스스로 판단한다는 뜻이고, ``이동(mobile)''은 팔처럼 제자리에 고정된 로봇과
+구분해 몸체 전체가 움직인다는 뜻이다.
+
+\section{왜 필요한가}
+\label{sec:lec01-why}
+
+로봇이 방을 청소하러 움직이는 상황을 생각해 보자. 목적지가 방 반대쪽이라고
+명령만 내리면 로봇은 움직일 수 있을까. 움직이지 못한다. 로봇은 먼저 \emph{지금
+자기가 방 어디에 있는지}를 모르면 어느 방향으로 몇 걸음을 가야 할지 계산할 수
+없다. 그래서 이동 로봇공학의 모든 문제는 결국 다음 세 질문으로 좁혀진다.
+% src: Lecture1 slide 4
+
+\begin{itemize}
+  \item \textbf{나는 어디 있는가 (Where am I?)}
+  \item \textbf{나는 어디로 가는가 (Where am I going?)}
+  \item \textbf{거기까지 어떻게 가는가 (How do I get there?)}
+\end{itemize}
+
+첫 질문에 답하려면 로봇은 주변 환경의 모형(model)을 갖고 있어야 하고(미리
+주어지거나 스스로 만들거나), 센서로 환경을 지각·분석해서 그 모형 안에서 자기
+위치를 찾아내야 한다. 둘째와 셋째 질문에 답하려면 그 위치 정보를 바탕으로
+움직임을 계획하고 실행해야 한다. % src: Lecture1 slide 4
+이 세 질문에 대한 답을 하나의 반복 절차로 묶은 것이 다음 절의 지각-사고-행동
+순환이다.
+
+\section{무엇인가}
+\label{sec:lec01-what}
+
+\subsection{지각-사고-행동 순환}
+\label{sec:lec01-stc}
+
+\paragraph{고치는 문제.} 세 질문(\Cref{sec:lec01-why})을 한 번만 풀고 끝내면
+안 된다. 로봇이 움직이는 동안 환경도 로봇의 위치도 계속 바뀌기 때문에, 센서로
+읽고 계산하고 움직이는 절차를 \emph{끊임없이 반복}해야 한다.
+
+\paragraph{아이디어.} 이 반복을 다섯 단계의 순환 고리로 나눈다. 지각
+(perception), 위치 추정과 지도 작성(localization / map building), 인지와 경로
+계획(cognition / path planning), 동작 제어(motion control), 그리고 그 결과가
+실제 환경에 반영되는 단계다. 이 다섯 단계를 통틀어 \textbf{지각-사고-행동
+순환(see-think-act cycle)}이라 부른다(\Cref{fig:lec01-see-think-act}).
+% src: Lecture1 slide 5
+
+\begin{itemize}
+  \item \textbf{센싱(sensing)}: 카메라, 라이다(LiDAR), 초음파 센서 등으로
+    환경의 원시 데이터(raw data)를 얻는다.
+  \item \textbf{정보 추출(information extraction)}: 원시 데이터에서 쓸모
+    있는 특징만 걸러낸다. 잡음을 없애는 필터링(filtering) · 경계선 찾기
+    (edge detection), 회전·크기·시점·조명 변화에 잘 버티는 지점을 찾는
+    키포인트 특징(keypoint feature, 예: FAST, SURF, SIFT, BRISK), 서로 다른
+    두 영상에서 같은 키포인트를 짝짓는 키포인트 매칭(keypoint matching),
+    사물 단위로 지도를 만드는 객체 수준 의미 지도 작성(object-level semantic
+    mapping)이 여기 속한다. 센싱과 정보 추출을 합쳐 \textbf{지각(perception)}
+    이라 부른다. % src: Lecture1 slides 18,19,20
+  \item \textbf{위치 추정과 지도 작성(localization / map building)}: 추출한
+    정보와 사전 지식(knowledge, database)을 합쳐 ``지금 여기가 지도의 어디인지''
+    (position)를 계산하고, 필요하면 전역 지도(global map)를 갱신한다.
+    % src: Lecture1 slides 5,21
+  \item \textbf{인지와 경로 계획(cognition / path planning)}: 위치 정보와
+    임무 명령(mission commands)을 받아 목적지까지의 경로(path)를 정한다. 지도
+    전체를 놓고 큰 그림을 짜는 전역 경로 계획(global path planning, 예: 그래프
+    탐색)과, 눈앞의 장애물을 피하는 국소 경로 계획(local path planning, 예:
+    국소 충돌 회피)으로 나뉜다. % src: Lecture1 slides 5,24
+  \item \textbf{동작 제어(motion control)}: 정해진 경로를 실제로 따라가도록
+    구동 명령(actuator commands)을 만들어 실행(path execution)하고, 그 명령이
+    모터를 움직여 로봇이 실제로 동작(acting)하게 한다. % src: Lecture1 slide 5
+\end{itemize}
+
+로봇이 움직이면 환경도 바뀌고, 그 바뀐 환경을 다시 센싱하면서 순환이 이어진다.
+그림에서 화살표가 한 바퀴를 도는 것은 이 반복을 뜻한다.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  scale=0.92, transform shape, >=stealth,
+  box/.style={draw, rounded corners=1pt, align=center, font=\scriptsize,
+              minimum width=3.2cm, minimum height=1.05cm},
+  lbl/.style={font=\tiny, align=center}
+]
+  % bottom of the loop
+  \node[box, fill=black!5] (env) at (4.2,-0.2)
+    {실제 환경\\(Real World Environment)};
+
+  % left column: perception, bottom-up
+  \node[box, fill=blue!8] (sensing) at (4.2,1.5) {센싱\\(Sensing)};
+  \node[box, fill=blue!8] (info) at (4.2,3.2)
+    {정보 추출\\(Information Extraction)};
+
+  % top-left: localization
+  \node[box, fill=orange!12] (loc) at (4.2,4.9)
+    {위치 추정 $\cdot$ 지도 작성\\(Localization / Map Building)};
+
+  % top-right: cognition
+  \node[box, fill=green!10] (cog) at (9.8,4.9)
+    {인지 $\cdot$ 경로 계획\\(Cognition / Path Planning)};
+
+  % right column: motion control, top-down
+  \node[box, fill=brown!12] (pexec) at (9.8,3.2) {경로 실행\\(Path Execution)};
+  \node[box, fill=brown!12] (acting) at (9.8,1.5) {동작\\(Acting)};
+
+  % side inputs
+  \node[box] (know) at (0.1,4.9) {지식 데이터베이스\\(Knowledge, Database)};
+  \node[box] (mission) at (9.8,6.5) {임무 명령\\(Mission Commands)};
+
+  % main loop arrows
+  \draw[->] (env.north) -- (sensing.south);
+  \draw[->] (sensing.north) -- node[lbl, right] {원시 데이터\\(Raw data)} (info.south);
+  \draw[->] (info.north) -- node[lbl, right] {환경 모델\\(Environment model)} (loc.south);
+  \draw[->] (loc.east) -- node[lbl, above] {위치(Position)\\전역 지도\\(Global map)} (cog.west);
+  \draw[->] (cog.south) -- node[lbl, right] {경로\\(Path)} (pexec.north);
+  \draw[->] (pexec.south) -- node[lbl, right] {구동 명령\\(Actuator commands)} (acting.north);
+  \draw[->] (acting.south) -- ++(0,-0.8) -| (env.east);
+
+  % side-input arrows
+  \draw[->] (know.east) -- (loc.west);
+  \draw[->] (know.south) |- (info.west);
+  \draw[->] (mission.south) -- (cog.north);
+\end{tikzpicture}
+\caption{지각-사고-행동 순환(see-think-act cycle). 왼쪽 열은 지각(perception),
+         오른쪽 열은 동작 제어(motion control)를 이룬다. 다음 장의 구동학
+         (kinematics) 논의는 이 순환의 동작 제어 단계를 자세히 푼 것이다.}
+\label{fig:lec01-see-think-act}
+\end{figure}
+
+\Cref{fig:lec01-see-think-act}은 이 장 전체의 지도다. 이후 절에서 다루는
+바퀴의 종류, 좌표계 변환은 모두 오른쪽 열(동작 제어)의 내부 계산이고,
+\Cref{sec:lec01-perception}과 \Cref{sec:lec01-loc-cog}는 왼쪽 열과 위쪽
+행(인지)을 조금 더 풀어 쓴 것이다.
+
+\subsection{동작 제어: 바퀴의 종류}
+\label{sec:lec01-wheels}
+
+\paragraph{고치는 문제.} 로봇의 동작 제어(motion control)를 계산하려면 먼저
+바퀴가 지면과 어떻게 접촉하는지부터 알아야 한다. 바퀴는 접지점에서 두 가지
+제약을 받는다. 구르는 방향으로는 미끄러지지 않고 굴러야 한다는 구름 제약
+(rolling constraint)과, 바퀴 축에 수직인 방향(옆)으로는 미끄러지지 않는다는
+비측면 미끄럼 제약(no-sliding constraint, lateral)이다.
+% src: Lecture1 slide 7
+어떤 제약이 어느 방향으로 걸리는지는 바퀴의 구조, 즉 바퀴가 몇 개의 축을
+중심으로 자유롭게 도는지(자유도, degrees of freedom, DOF)에 따라 달라진다.
+
+\paragraph{아이디어.} 슬라이드는 로봇에 흔히 쓰이는 바퀴를 네 가지로
+분류한다(\Cref{tab:lec01-wheels}). % src: Lecture1 slides 8,9
+
+\begin{table}[ht]
+\centering
+\caption{바퀴의 네 가지 종류와 자유도(DOF). ``어디서 회전하는가''는 그 바퀴가
+         자유도를 갖는 회전축의 위치다.}
+\begin{tabularx}{\linewidth}{@{}l l L L@{}}
+\toprule
+종류 (Type) & 자유도 (DOF) & 회전이 일어나는 곳 & 비고 \\
+\midrule
+(a) 표준 바퀴 (Standard wheel) & 2
+  & (모터로 구동되는) 바퀴 축, 접지점
+  & 조향은 되지 않음 \\
+(b) 캐스터 바퀴 (Castor wheel) & 2
+  & 오프셋 조향 관절(offset steering joint), 접지점
+  & 쇼핑카트 앞바퀴 형태 \\
+(c) 스웨디시 바퀴 (Swedish wheel) & 3
+  & (모터로 구동되는) 바퀴 축, 롤러(roller), 접지점
+  & 롤러가 옆미끄럼을 대신 흡수 \\
+(d) 볼/구형 바퀴 (Ball/spherical wheel) & 슬라이드에 없음
+  & 없음
+  & 실현이 기술적으로 어려움 (realization technically difficult) \\
+\bottomrule
+\end{tabularx}
+\label{tab:lec01-wheels}
+\end{table}
+
+\Cref{tab:lec01-wheels}에서 자유도가 클수록 그 바퀴 하나가 낼 수 있는 움직임의
+방향이 다양해진다. 표준 바퀴와 캐스터 바퀴는 자유도 2로 앞뒤로만 잘 구르고
+옆으로는 미끄러지지 않는 반면, 스웨디시 바퀴는 롤러 축 하나가 더 있어 자유도가
+3이 되고, 옆 방향으로도 롤러가 굴러 실질적으로 옆 이동이 가능해진다. 이 차이가
+다음 장에서 다룰 옴니휠(omniwheel) 로봇과 일반 차동구동(differential drive)
+로봇의 움직임 차이로 이어진다(\Cref{ch:lec02}).
+
+\subsection{동작 제어: 로봇 섀시와 좌표계}
+\label{sec:lec01-chassis}
+
+\paragraph{In brief.}
+\begin{description}
+  \item[Why] 로봇의 위치와 방향을 숫자로 다루려면 좌표계(coordinate frame)가
+    필요하다. 그런데 로봇 안에서 보는 방향과 방 전체에서 보는 방향은 다르므로,
+    둘을 잇는 계산이 필요하다.
+  \item[When] 로봇 섀시(chassis)를 하나의 강체(rigid body)로 볼 수 있을 때,
+    즉 바퀴축·조향 관절의 미세한 자유도는 무시하고 몸체 전체의 위치와 방향만
+    볼 때 쓴다.
+  \item[Where] 평면 위를 움직이는 바퀴 로봇에 적용된다. 3차원 공간을 나는
+    UAV나 다리로 걷는 로봇은 자유도가 더 많아 이 절의 3자유도 모델만으로는
+    부족하다.
+  \item[How] 전역 좌표계(global frame)에서 잰 로봇의 자세(pose)를 회전 행렬
+    (rotation matrix) $R(\theta)$로 로봇 좌표계(local frame)의 값으로
+    바꾼다.
+\end{description}
+
+\paragraph{고치는 문제.} 로봇의 바퀴축, 조향 관절, 캐스터 관절 하나하나를
+따로 추적하면 계산이 감당할 수 없이 복잡해진다. 그런데 동작 제어에서 정말
+궁금한 것은 대개 ``로봇 전체가 방 안 어디에, 어느 방향으로 있는가''이지,
+바퀴 하나하나의 자세가 아니다.
+
+\paragraph{아이디어.} 그래서 로봇의 몸체(섀시)를 바퀴처럼 관절이 있는
+부분과 분리해서, \textbf{하나의 강체}로 취급한다. 평면 위에서 강체 하나의
+자세는 숫자 세 개로 완전히 정해진다. 평면 위 위치 두 개($x$, $y$)와,
+수직축을 기준으로 한 방향 하나($\theta$)다. 즉 로봇 섀시는 평면 위에서
+\textbf{자유도 3}을 갖는다. 바퀴 축이나 조향 관절이 갖는 추가 자유도는
+섀시 자체의 자유도에 포함하지 않는다. % src: Lecture1 slide 10
+
+\paragraph{예.} 서 있는 사람이 방바닥에 원점을 찍고 동서남북으로 축을 그었다고
+하자(전역 좌표계). 로봇이 그 방 안에서 $(x,y)=(2\,\text{m}, 1\,\text{m})$
+지점에 서서 원래 축에서 $30^\circ$ 돌아서 있다면, 이 로봇의 자세는 세 숫자
+$(2, 1, 30^\circ)$로 완전히 적힌다. 로봇 안의 왼쪽 바퀴가 정확히 몇 도
+돌았는지는 이 세 숫자에 들어가지 않는다. 그것은 섀시가 아니라 바퀴의
+자유도이기 때문이다.
+
+\paragraph{정의.} 로봇의 자세(pose)를 전역 좌표계 $\{X_I, Y_I\}$를 기준으로
+\[
+  \xi_I = \begin{bmatrix} x \\ y \\ \theta \end{bmatrix}
+\]
+로 적는다. 첨자 $I$는 관성계(inertial frame), 즉 로봇이 움직이든 말든 고정된
+방 전체의 좌표계라는 뜻이다. 로봇 몸체에는 그와 별도로 로봇과 함께 움직이는
+자기 좌표계 $\{X_R, Y_R\}$가 있다. 이때 $X_R$은 보통 로봇의 정면, $Y_R$은
+로봇의 왼쪽을 가리키도록 잡는다(\Cref{fig:lec01-frames}).
+% src: Lecture1 slides 11,12
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[scale=1.3,>=stealth]
+  \draw[->,black!45] (-0.3,0) -- (3.6,0) node[right] {$X_I$};
+  \draw[->,black!45] (0,-0.3) -- (0,3.2) node[above] {$Y_I$};
+  \draw[dashed,black!45] (2.0,0) -- (2.0,1.2);
+  \draw[dashed,black!45] (0,1.2) -- (2.0,1.2);
+  \node[below] at (2.0,-0.05) {$x$};
+  \node[left] at (-0.05,1.2) {$y$};
+  \draw[->,black!60] (1.4,1.2) arc (0:35:0.6) node[midway,right,black] {$\theta$};
+  \draw[->,very thick] (2.0,1.2) -- ++(35:1.4) node[right] {$X_R$};
+  \draw[->,very thick,blue!60!black] (2.0,1.2) -- ++(125:1.4) node[above] {$Y_R$};
+  \fill (2.0,1.2) circle (1.2pt);
+\end{tikzpicture}
+\caption{전역 좌표계 $\{X_I, Y_I\}$와 로봇의 좌표계 $\{X_R, Y_R\}$. 로봇의
+         자세는 전역 좌표계에서 $(x, y, \theta)$로 적힌다.}
+\label{fig:lec01-frames}
+\end{figure}
+
+\paragraph{유도.} 전역 좌표계의 값 $\xi_I$를 로봇 좌표계의 값 $\xi_R$로
+바꾸는 계산이 필요하다. 이 강의 자료가 쓰는 회전 행렬은
+
+\begin{equation}
+\label{eq:lec01-R}
+R(\theta) =
+\begin{bmatrix}
+\cos\theta & \sin\theta & 0 \\
+-\sin\theta & \cos\theta & 0 \\
+0 & 0 & 1
+\end{bmatrix}
+\end{equation}
+
+이고, 변환은 $\xi_R = R(\theta)\,\xi_I$다. % src: Lecture1 slides 12,13
+행렬을 대입해 한 줄씩 계산하면
+
+\begin{align*}
+&\begin{bmatrix} x_R \\ y_R \\ \theta_R \end{bmatrix}
+ = \begin{bmatrix}
+     \cos\theta & \sin\theta & 0 \\
+     -\sin\theta & \cos\theta & 0 \\
+     0 & 0 & 1
+   \end{bmatrix}
+   \begin{bmatrix} x \\ y \\ \theta \end{bmatrix}
+ && \text{행렬 곱을 벌여 쓴다}\\
+&x_R = x\cos\theta + y\sin\theta
+ && \text{1행: $R$의 1행과 $\xi_I$의 내적}\\
+&y_R = -x\sin\theta + y\cos\theta
+ && \text{2행: $R$의 2행과 $\xi_I$의 내적}\\
+&\theta_R = \theta
+ && \text{3행: 자세각 자체는 바뀌지 않는다}
+\end{align*}
+
+를 얻는다. 이 값이 바로 \Cref{eq:lec01-R}이 계산하는 것 전부다.
+
+\paragraph{좌표계 변환 규약(convention)에 대한 경고.}
+\Cref{eq:lec01-R}의 오른쪽 위 성분은 $-\sin\theta$가 아니라 $+\sin\theta$다.
+이것은 \emph{우연이 아니다}. \Cref{eq:lec01-R}은 벡터는 그대로 두고
+\emph{좌표계를 돌려서} 같은 점을 다시 표현하는 \textbf{수동적(passive)
+해석}이다(\Cref{sec:hw2-bg-two} 참고). 반면 다음 장에서 쓰는 $R_Z(\theta)$
+(\Cref{eq:hw2-rz})는 좌표계는 그대로 두고 \emph{벡터 자체를 돌리는}
+\textbf{능동적(active) 해석}이고, 부호가 반대다. 사실 이 둘은 서로 전치
+(transpose) 관계다. $R(\theta) = R_Z(\theta)^{\mathsf{T}}$이고, 회전
+행렬은 직교 행렬이므로 $R_Z(\theta)^{\mathsf{T}} = R_Z(\theta)^{-1}$다.
+
+구체적인 숫자로 확인해 보자. $\theta = \pi/2$, $\xi_I = (1, 0, \pi/2)^{\mathsf{T}}$를
+\Cref{eq:lec01-R}에 넣으면
+\[
+  \xi_R = R\!\left(\tfrac{\pi}{2}\right)\xi_I
+        = \begin{bmatrix} 0 & 1 & 0 \\ -1 & 0 & 0 \\ 0 & 0 & 1 \end{bmatrix}
+          \begin{bmatrix} 1 \\ 0 \\ \pi/2 \end{bmatrix}
+        = \begin{bmatrix} 0 \\ -1 \\ \pi/2 \end{bmatrix}
+\]
+로 $y$ 성분이 $-1$이 된다. 그런데 같은 $(x,y)=(1,0)$에 \Cref{ch:hw2}의
+$R_Z(\pi/2)$(\Cref{eq:hw2-rz})를 적용하면
+\[
+  R_Z\!\left(\tfrac{\pi}{2}\right)\begin{bmatrix}1\\0\end{bmatrix}
+  = \begin{bmatrix}0&-1\\1&0\end{bmatrix}\begin{bmatrix}1\\0\end{bmatrix}
+  = \begin{bmatrix}0\\1\end{bmatrix}
+\]
+로 $y$ 성분이 $+1$이 되어 부호가 반대로 나온다. 두 장에서 같은 각도
+$\pi/2$를 썼는데 결과의 부호가 다른 것은 계산이 틀려서가 아니라, \textbf{두
+장이 서로 다른 해석의 회전 행렬을 쓰기 때문}이다. 이 장의 $R(\theta)$를
+다음 장의 $R_Z(\theta)$ 자리에 그대로 옮겨 쓰면 부호가 뒤집힌 답을 얻는다.
+
+\subsection{지각}
+\label{sec:lec01-perception}
+
+지각(perception) 단계는 \Cref{sec:lec01-stc}에서 이미 소개했다. 여기서는
+그중 정보 추출(information extraction)에 속하는 키포인트 특징(keypoint
+feature)만 조금 더 풀어 쓴다. 카메라 영상 두 장이 조금 다른 각도, 다른
+밝기에서 찍혔다고 해도 ``같은 지점''을 다시 찾아낼 수 있어야 로봇이 자기
+위치를 추정할 수 있다. 그래서 회전, 크기, 시점, 조명이 바뀌어도 잘 안
+바뀌는 지점(키포인트)을 찾는 알고리즘이 필요하고, FAST, SURF, SIFT, BRISK
+같은 이름이 그런 알고리즘들이다. 두 영상에서 뽑은 키포인트끼리 짝을 짓는
+작업이 키포인트 매칭(keypoint matching)이다.
+% src: Lecture1 slides 18,19
+
+이보다 한 단계 위에는 객체 수준 의미 지도 작성(object-level semantic
+mapping)이 있다. 각 프레임마다 장면을 기하-의미 분할(geometric-semantic
+segmentation)해서, 이미 알려진 사물과 처음 보는 사물 형태의 요소를 함께
+검출하고, 그 결과를 3차원 볼륨 지도에 누적해 넣는 방식이다. 슬라이드는 이
+방식을 구현한 공개 소스 도구로 ASL(취리히 연방공대)의 voxblox-plusplus를
+든다(\texttt{github.com/ethz-asl/voxblox-plusplus}), 관련 논문은 Grinvald,
+Furrer, Novkovic, Chung, Cadena, Siegwart, Nieto, ``Volumetric instance-aware
+semantic mapping and 3D object discovery,'' RA-L 2019이다.
+% src: Lecture1 slide 20
+
+\subsection{위치 추정과 인지}
+\label{sec:lec01-loc-cog}
+
+위치 추정(localization)은 ``나는 어디 있는가''라는 첫 질문에 직접 답하는
+단계로, \Cref{sec:lec01-stc}의 위치 추정/지도 작성 상자가 하는 일이다.
+슬라이드는 이 장에서 위치 추정의 알고리즘 자체는 다루지 않고, 지각-사고-행동
+순환에서의 위치만 다시 보여 준다. % src: Lecture1 slide 21
+
+인지(cognition)는 ``나는 어디로 가는가''와 ``거기까지 어떻게 가는가''에
+답한다. 경로 계획은 두 층위로 나뉜다. \textbf{전역 경로 계획(global path
+planning)}은 지도 전체를 그래프로 보고 그래프 탐색(graph search)으로 큰
+경로를 찾는다. \textbf{국소 경로 계획(local path planning)}은 눈앞에 갑자기
+나타난 장애물처럼 지도에 없던 상황에 대응하는 국소 충돌 회피(local collision
+avoidance)를 맡는다. % src: Lecture1 slide 24
+
+\subsection{현황: 오늘날의 로봇}
+\label{sec:lec01-status}
+
+지각-사고-행동 순환이 실제로 어디까지 와 있는지, 슬라이드가 드는 예 몇 가지를
+짧게 정리한다. 이 절은 개관용이므로 최신 수치를 갱신하는 절이 아니라, 슬라이드
+시점의 사례를 그대로 옮긴다.
+
+\begin{itemize}
+  \item \textbf{3차원 레이저 센서(3D laser sensor)}: 자율주행차가 주변
+    지형을 3차원으로 스캔하는 데 쓰인다. % src: Lecture1 slide 25
+  \item \textbf{카메라 기반 차선 추적(camera lane tracking)}: 카메라 영상만으로
+    차선, 표지판, 다른 차량을 검출하고 추적한다. % src: Lecture1 slide 26
+  \item \textbf{시각 정보만으로 비행하는 UAV(vision-only UAV navigation)}: GPS가
+    끊긴 환경에서 카메라 한 대와 특징 기반 시각 SLAM(feature-based visual
+    SLAM)만으로 자율 비행하는 소형 헬리콥터 무리 사례. % src: Lecture1 slide 28
+  \item \textbf{정밀 농업을 위한 UAV 군집(UAV swarms for precision
+    agriculture)}: Flourish 프로젝트는 여러 UAV가 작업을 병렬화해 효율을
+    높이고, 협력해 정확도를 높이고, 중복 구성으로 강건성을 높이고,
+    탈중앙화된 알고리즘으로 규모 확장성을 높이는 것을 목표로 든다.
+    % src: Lecture1 slides 29,30,31
+\end{itemize}
+
+\section{어떻게 적용하는가}
+\label{sec:lec01-apply}
+
+이 장의 틀은 이 책의 과제 세 개와 각각 맞닿아 있다.
+
+\begin{itemize}
+  \item \Cref{ch:hw1}의 시뮬레이터(ARGoS, Webots)는 지각-사고-행동 순환
+    (\Cref{fig:lec01-see-think-act})을 실제로 한 바퀴 돌려 보는 자리다.
+    시뮬레이터 안에서 센싱, 정보 추출, 위치 추정, 경로 계획, 동작 제어가
+    모두 코드 한 편 안에서 맞물려 돌아가는 것을 직접 확인하게 된다.
+  \item \Cref{ch:hw2}의 회전 행렬 계산은 \Cref{sec:lec01-chassis}에서 다룬
+    전역 좌표계와 로봇 좌표계 사이의 변환 그 자체다. 다만 두 장의 회전
+    행렬은 능동적/수동적 해석이 다르므로, \Cref{sec:lec01-chassis}의
+    경고 상자에서 짚은 부호 차이를 그대로 들고 가야 한다.
+  \item \Cref{ch:hw3}의 저역통과 필터(low-pass filter)는
+    \Cref{sec:lec01-perception}에서 지각 단계의 한 상자로 소개한 필터링
+    (filtering) 및 경계선 찾기(edge detection)를 직접 구현한 것이다. 잡음을
+    누르고 나서야 키포인트 특징을 뽑을 수 있으므로, 저역통과 필터는 정보
+    추출의 첫 단계에 해당한다.
+\end{itemize}
+
+\section{앞으로}
+\label{sec:lec01-future}
+
+슬라이드는 마지막에 아직 풀리지 않은 문제들을 서비스 로봇(service robot)의
+과제로 제시한다. 로봇이 실제 물리 세계에서 일하려면 다음이 더 필요하다고
+든다. % src: Lecture1 slide 32
+
+\begin{itemize}
+  \item 불확실하고 일부만 주어진 정보(uncertain and partially available
+    information)를 다루는 능력.
+  \item 환경을 보고 느끼고 이해하는 능력, 그리고 촉각으로 상호작용하기 위한
+    토크/힘 제어(``소프트 로봇(soft robot)'').
+  \item 직관적인 사람-기계 인터페이스(human-machine interface).
+  \item 매일 배우고 적응하는 능력(평생 학습, lifelong learning).
+\end{itemize}
+
+슬라이드는 이 목록을 풀려면 AI/ML만으로는 부족하고, 새로운 센싱·구동·로봇
+개념 자체가 함께 필요하다고 강조한다. % src: Lecture1 slide 32
+
+다리로 걷는 로봇(legged robot)은 이 장에서 짧은 영상 링크로만 등장하고
+자세히 다루지 않는다. 바퀴 로봇의 구동학(\Cref{sec:lec01-wheels},
+\Cref{sec:lec01-chassis})과 달리 다리 로봇은 접지와 이탈이 번갈아 일어나는
+접촉이 있어 지금도 활발한 연구 주제다. 로봇의 이동 방식(locomotion) 자체는
+다음 장인 \Cref{ch:lec02}에서 이어서 다룬다.
+
+\crefname{equation}{Equation}{Equations}
+\Crefname{equation}{Equation}{Equations}
+\crefname{figure}{Figure}{Figures}
+\Crefname{figure}{Figure}{Figures}
+\crefname{table}{Table}{Tables}
+\Crefname{table}{Table}{Tables}
+\crefname{section}{Section}{Sections}
+\Crefname{section}{Section}{Sections}
+\crefname{chapter}{Chapter}{Chapters}
+\Crefname{chapter}{Chapter}{Chapters}

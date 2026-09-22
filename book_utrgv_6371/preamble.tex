@@ -1,0 +1,60 @@
+% Shared preamble for the CSCI 6371 homework collection.
+% Engine: XeLaTeX only (rules/writing/latex.md 1).
+
+\usepackage{fontspec}
+% Korean sections use xeCJK - kotex is absent from this TeX install
+% (rules/writing/latex.md 2). CJKspace=true is mandatory: without it the
+% spaces between Korean words disappear.
+\usepackage{xeCJK}
+% AutoFakeSlant: the font has no italic shape, so \emph on Korean text would
+% otherwise fall back to upright and log a missing-shape warning.
+\setCJKmainfont{Apple SD Gothic Neo}[AutoFakeSlant=0.2]
+\xeCJKsetup{CJKspace=true}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{tabularx}
+% Ragged-right X column: justified narrow columns stretch the spacing between
+% Korean glyphs badly (rules/writing/latex.md 8).
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{etoolbox}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+\usepackage{cleveref}
+
+\graphicspath{{figures/}}
+
+% Caption language follows the language of the part (book.md 2: one caption
+% language per body of text, never mixed).
+\newcommand{\korfloatnames}{\renewcommand{\figurename}{그림}\renewcommand{\tablename}{표}}
+\newcommand{\engfloatnames}{\renewcommand{\figurename}{Figure}\renewcommand{\tablename}{Table}}
+
+% Code blocks are never split across a page break (rules/writing/latex.md 9).
+\BeforeBeginEnvironment{lstlisting}{\par\medskip\noindent\begin{minipage}{\linewidth}}
+\AfterEndEnvironment{lstlisting}{\end{minipage}\par\medskip}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{blue!60!black},
+  commentstyle=\color{black!55}\itshape,
+  stringstyle=\color{green!40!black},
+  numberstyle=\ttfamily\scriptsize\color{black!45},
+  frame=single, rulecolor=\color{black!25},
+  breaklines=true, showstringspaces=false,
+  captionpos=b,
+}
+
+% Shell transcripts: no language keywords, no line numbers.
+\lstdefinestyle{shell}{language=, numbers=none, basicstyle=\ttfamily\scriptsize}
+% Python source: keywords highlighted, lines numbered.
+\lstdefinestyle{py}{language=Python, numbers=left}
+
+% Marks a section that is not written yet. Visible on purpose.
+\newcommand{\todo}[1]{\par\medskip\noindent
+  \fcolorbox{red!50}{red!5}{\parbox{0.96\linewidth}{\textbf{TODO:} #1}}\par\medskip}
