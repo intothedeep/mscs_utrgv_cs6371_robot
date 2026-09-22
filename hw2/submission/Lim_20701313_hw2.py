@@ -5,17 +5,26 @@ import numpy as np
 
 # rotation matrix on x axis
 def Rx(theta):
-    return np.matrix([[1, 0, 0], [0, m.cos(theta), -m.sin(theta)], [0, m.sin(theta), m.cos(theta)]])
+    return np.matrix([
+        [1, 0, 0], 
+        [0, m.cos(theta), -m.sin(theta)], 
+        [0, m.sin(theta), m.cos(theta)]])
 
 
 # rotation matrix on y axis
 def Ry(theta):
-    return np.matrix([[m.cos(theta), 0, m.sin(theta)], [0, 1, 0], [-m.sin(theta), 0, m.cos(theta)]])
+    return np.matrix([
+        [m.cos(theta), 0, m.sin(theta)], 
+        [0, 1, 0], 
+        [-m.sin(theta), 0, m.cos(theta)]])
 
 
 # rotation matrix on z axis
 def Rz(theta):
-    return np.matrix([[m.cos(theta), -m.sin(theta), 0], [m.sin(theta), m.cos(theta), 0], [0, 0, 1]])
+    return np.matrix([
+        [m.cos(theta), -m.sin(theta), 0], 
+        [m.sin(theta), m.cos(theta), 0], 
+        [0, 0, 1]])
 
 
 # please give the values of the three angles
