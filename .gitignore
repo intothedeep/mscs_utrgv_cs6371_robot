@@ -71,3 +71,20 @@ scripts/migration/_dumps/
 # ERD graphviz intermediate — the .png/.svg outputs ARE committed so the
 # diagram is readable without graphviz installed.
 packages/db/ERD*.dot
+
+# LaTeX intermediates (.claude/rules/writing/latex.md §12)
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg
+*.synctex.gz
+*.xdv
+
+# Python
+__pycache__/
